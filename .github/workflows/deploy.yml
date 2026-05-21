@@ -125,7 +125,7 @@ jobs:
           az containerapp update \
             --name ${{ secrets.CONTAINER_APP_NAME }} \
             --resource-group ${{ secrets.CONTAINER_APP_RG }} \
-            --image ${{ needs.build.outputs.image_tag }}
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/chilife-agent:latest
 
           URL=$(az containerapp show \
             --name ${{ secrets.CONTAINER_APP_NAME }} \
