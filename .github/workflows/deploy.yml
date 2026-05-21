@@ -86,14 +86,14 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Log in to Azure Container Registry
-        run: az acr login --name ${{ secrets.ACR_LOGIN_SERVER }}
+        run: az acr login --name chilifechrgdvmu
 
       - name: Build and push Docker image
         id: meta
         run: |
           TAG="${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ steps.sha.outputs.short }}"
           LATEST="${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest"
-          docker build -t "$TAG" -t "$LATEST" .
+          docker build --platform linux/amd64 -t "$TAG" -t "$LATEST" .
           docker push "$TAG"
           docker push "$LATEST"
           echo "tags=$TAG" >> $GITHUB_OUTPUT
