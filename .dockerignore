@@ -1,0 +1,33 @@
+# Never bake secrets or local state into the image
+.env
+.env.*
+!.env.example
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# SQLite DB (mounted as a volume at runtime)
+db/*.db
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Git
+.git/
+.gitignore
+
+# Docs (optional — include if you want them in the image)
+# docs/

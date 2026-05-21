@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChiLife Agent — Architecture</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:        #0d1b2a;
+      --navy-mid:    #1b2d3f;
+      --navy-light:  #243447;
+      --navy-border: #2e4560;
+      --white:       #f0f4f8;
+      --muted:       #8da5bc;
+
+      /* local (blue) palette */
+      --local-accent:  #3b82f6;
+      --local-bg:      #1a2d4a;
+      --local-border:  #2e4d7a;
+      --local-pill:    #1e3a5f;
+      --local-arrow:   #60a5fa;
+
+      /* azure (teal) palette */
+      --az-accent:   #06b6d4;
+      --az-bg:       #0f2d35;
+      --az-border:   #0e4d5f;
+      --az-pill:     #0c3845;
+      --az-arrow:    #22d3ee;
+
+      /* highlight */
+      --gold:        #f59e0b;
+      --green:       #10b981;
+      --purple:      #a855f7;
+    }
+
+    body {
+      background: var(--navy);
+      color: var(--white);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: linear-gradient(135deg, #0d1b2a 0%, #1b3a5c 50%, #0d2b3d 100%);
+      border-bottom: 2px solid var(--navy-border);
+      padding: 28px 40px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .header-left h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, #60a5fa, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-left p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+    .header-badges {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    .badge-blue  { background: #1e3a5f; border: 1px solid var(--local-accent); color: #93c5fd; }
+    .badge-teal  { background: #0c3845; border: 1px solid var(--az-accent);    color: #67e8f9; }
+    .badge-gold  { background: #2a1f00; border: 1px solid var(--gold);          color: #fcd34d; }
+
+    /* ── LEGEND ── */
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 14px 40px;
+      background: var(--navy-mid);
+      border-bottom: 1px solid var(--navy-border);
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .legend-dot {
+      width: 12px; height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* ── MAIN GRID ── */
+    .diagram-wrapper {
+      padding: 32px 28px;
+      display: grid;
+      grid-template-columns: 1fr 40px 1fr;
+      gap: 0;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* ── COLUMN HEADERS ── */
+    .col-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .col-header h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 10px 20px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+    .col-header-local h2  { background: var(--local-pill); border: 1px solid var(--local-border); color: #93c5fd; }
+    .col-header-azure h2  { background: var(--az-pill);    border: 1px solid var(--az-border);    color: #67e8f9; }
+    .col-header p { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+
+    /* ── DIVIDER ── */
+    .divider {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding-top: 52px;
+    }
+    .divider-line {
+      width: 2px;
+      background: linear-gradient(180deg, transparent, var(--navy-border) 15%, var(--navy-border) 85%, transparent);
+      position: relative;
+    }
+    .divider-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--navy);
+      border: 1px solid var(--navy-border);
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      writing-mode: vertical-rl;
+      padding: 12px 4px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    /* ── FLOW COLUMN ── */
+    .flow-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    /* ── COMPONENT BOX ── */
+    .comp {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      position: relative;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .comp:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .comp-local { background: var(--local-bg); border: 1px solid var(--local-border); }
+    .comp-azure { background: var(--az-bg);    border: 1px solid var(--az-border);    }
+    .comp-neutral{ background: var(--navy-light); border: 1px solid var(--navy-border); }
+
+    .comp-icon {
+      font-size: 1.6rem;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .comp-text { flex: 1; min-width: 0; }
+    .comp-name {
+      font-size: 0.92rem;
+      font-weight: 700;
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .comp-name-local { color: #93c5fd; }
+    .comp-name-azure { color: #67e8f9; }
+    .comp-name-neutral{ color: var(--white); }
+    .comp-desc {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+    .comp-tag {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-top: 6px;
+      display: inline-block;
+      letter-spacing: 0.03em;
+    }
+    .tag-local   { background: #1e3a5f; color: #60a5fa; border: 1px solid #2e5a8f; }
+    .tag-azure   { background: #0c3845; color: #22d3ee; border: 1px solid #0e6070; }
+    .tag-gold    { background: #2a1f00; color: #fcd34d; border: 1px solid #78520a; }
+    .tag-green   { background: #052e16; color: #34d399; border: 1px solid #065f46; }
+    .tag-purple  { background: #2e1065; color: #d8b4fe; border: 1px solid #6b21a8; }
+
+    /* ── ARROW ── */
+    .arrow-wrap {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      position: relative;
+      padding: 2px 0;
+    }
+    .arrow-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 2px 9px;
+      border-radius: 10px;
+      z-index: 1;
+      position: relative;
+      white-space: nowrap;
+    }
+    .arrow-label-local { background: var(--navy-mid); color: var(--local-arrow); border: 1px solid var(--local-border); }
+    .arrow-label-azure { background: var(--navy-mid); color: var(--az-arrow);    border: 1px solid var(--az-border);    }
+
+    /* SVG arrow line */
+    .arrow-svg { overflow: visible; }
+
+    /* ── BRANCH (horizontal split) ── */
+    .branch {
+      width: 100%;
+      max-width: 400px;
+      display: grid;
+      gap: 8px;
+    }
+    .branch-2 { grid-template-columns: 1fr 1fr; }
+    .branch-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .branch-label {
+      text-align: center;
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    .comp-sm {
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .comp-sm .comp-icon { font-size: 1.2rem; }
+    .comp-sm .comp-name { font-size: 0.8rem; }
+    .comp-sm .comp-desc { font-size: 0.68rem; }
+
+    /* ── FALLBACK BOX ── */
+    .fallback-box {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 10px;
+      padding: 12px 16px;
+      background: #1a1035;
+      border: 1px dashed #6b21a8;
+    }
+    .fallback-box .fb-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #d8b4fe;
+      margin-bottom: 4px;
+    }
+    .fallback-box .fb-desc {
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    /* ── CICD STRIP ── */
+    .cicd-strip {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 10px;
+      padding: 12px 16px;
+      background: #1a1200;
+      border: 1px solid #78520a;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cicd-strip .cicd-icon { font-size: 1.4rem; }
+    .cicd-strip .cicd-text { flex: 1; }
+    .cicd-strip .cicd-name { font-size: 0.82rem; font-weight: 700; color: #fcd34d; }
+    .cicd-strip .cicd-desc { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+    .cicd-arrow {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.68rem;
+      color: #f59e0b;
+    }
+
+    /* ── SECTION LABEL ── */
+    .section-label {
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 10px 0 4px;
+    }
+
+    /* ── COST SECTION ── */
+    .cost-section {
+      margin: 0 28px 32px;
+      max-width: 1400px;
+      margin-left: auto;
+      margin-right: auto;
+      margin-bottom: 32px;
+    }
+    .cost-section h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cost-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .cost-card {
+      background: var(--navy-light);
+      border: 1px solid var(--navy-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .cost-card .cc-service {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 4px;
+    }
+    .cost-card .cc-desc {
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    .cost-card .cc-price {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--gold);
+    }
+    .cost-total {
+      background: linear-gradient(135deg, #2a1f00, #1a1200);
+      border: 1px solid var(--gold);
+      border-radius: 10px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cost-total .ct-label { font-size: 0.85rem; font-weight: 700; color: var(--white); }
+    .cost-total .ct-price { font-size: 1.3rem; font-weight: 800; color: var(--gold); }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--navy-mid);
+      border-top: 1px solid var(--navy-border);
+      padding: 16px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .footer-main {
+      font-size: 0.85rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #60a5fa, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .footer-meta { font-size: 0.75rem; color: var(--muted); }
+
+    /* ── UTILITY ── */
+    .spacer-sm  { height: 6px; }
+    .spacer-md  { height: 14px; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════ -->
+<header>
+  <div class="header-left">
+    <h1>ChiLife Agent — Architecture</h1>
+    <p>Component diagram · Local Development vs. Azure Cloud deployment</p>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-blue">Python / Streamlit</span>
+    <span class="badge badge-teal">Azure Container Apps</span>
+    <span class="badge badge-gold">OpenAI GPT-4o</span>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════
+     LEGEND
+══════════════════════════════════════════════ -->
+<div class="legend">
+  <span style="font-size:0.78rem;font-weight:700;color:var(--white);">Legend:</span>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#3b82f6;border:1px solid #60a5fa;"></div>
+    Local / Dev component
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#06b6d4;border:1px solid #22d3ee;"></div>
+    Azure cloud resource
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#a855f7;border:1px solid #d8b4fe;"></div>
+    Fallback / optional
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#f59e0b;border:1px solid #fcd34d;"></div>
+    CI/CD pipeline
+  </div>
+  <div class="legend-item">
+    <svg width="28" height="12" viewBox="0 0 28 12" style="overflow:visible;">
+      <line x1="0" y1="6" x2="22" y2="6" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="4,2"/>
+      <polygon points="22,3 28,6 22,9" fill="#60a5fa"/>
+    </svg>
+    Data / request flow
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MAIN DIAGRAM
+══════════════════════════════════════════════ -->
+<div class="diagram-wrapper">
+
+  <!-- ─── LEFT: LOCAL ─── -->
+  <div>
+    <div class="col-header col-header-local">
+      <h2>💻 Local Development</h2>
+      <p>macOS · Python 3.9 · SQLite on disk · Mock data services</p>
+    </div>
+
+    <div class="flow-col">
+
+      <!-- Browser -->
+      <div class="comp comp-local">
+        <div class="comp-icon">🌐</div>
+        <div class="comp-text">
+          <div class="comp-name comp-name-local">Browser</div>
+          <div class="comp-desc">Any modern browser · http://localhost:8501</div>
+          <span class="comp-tag tag-local">HTTP/WebSocket</span>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="18" viewBox="0 0 2 18">
+          <line x1="1" y1="0" x2="1" y2="18" stroke="#3b82f6" stroke-width="1.5"/>
+        </svg>
+        <span class="arrow-label arrow-label-local">HTTP request</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#3b82f6"/>
+        </svg>
+      </div>
+
+      <!-- Streamlit App -->
+      <div class="comp comp-local">
+        <div class="comp-icon">🎈</div>
+        <div class="comp-text">
+          <div class="comp-name comp-name-local">Streamlit App</div>
+          <div class="comp-desc"><strong style="color:#93c5fd;">app.py</strong> · localhost:8501 · Chat UI, conversation history, sidebar controls</div>
+          <span class="comp-tag tag-local">Streamlit 1.x</span>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="18" viewBox="0 0 2 18">
+          <line x1="1" y1="0" x2="1" y2="18" stroke="#3b82f6" stroke-width="1.5"/>
+        </svg>
+        <span class="arrow-label arrow-label-local">calls agent</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#3b82f6"/>
+        </svg>
+      </div>
+
+      <!-- Lifestyle Agent -->
+      <div class="comp comp-local" style="border-color:#4f86c6;background:#1d3355;">
+        <div class="comp-icon">🤖</div>
+        <div class="comp-text">
+          <div class="comp-name comp-name-local">LifestyleAgent</div>
+          <div class="comp-desc"><strong style="color:#93c5fd;">lifestyle_agent.py</strong> · Orchestrates all services, builds system prompt, calls LLM or rule-based fallback</div>
+          <span class="comp-tag tag-local">Core Agent</span>
+        </div>
+      </div>
+
+      <!-- Branch: 3 services -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="12" viewBox="0 0 2 12">
+          <line x1="1" y1="0" x2="1" y2="12" stroke="#3b82f6" stroke-width="1.5"/>
+        </svg>
+        <span class="arrow-label arrow-label-local">service calls</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#3b82f6"/>
+        </svg>
+      </div>
+
+      <div class="section-label">Injected context services</div>
+      <div class="branch branch-3" style="max-width:400px;width:100%;">
+
+        <div class="comp comp-local comp-sm">
+          <div class="comp-icon">🌤️</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-local">WeatherService</div>
+            <div class="comp-desc">Mock · seasonal rules · weather_service.py</div>
+            <span class="comp-tag tag-local">Mock</span>
+          </div>
+        </div>
+
+        <div class="comp comp-local comp-sm">
+          <div class="comp-icon">🎭</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-local">EventsService</div>
+            <div class="comp-desc">mock_events.json · events_service.py</div>
+            <span class="comp-tag tag-local">JSON</span>
+          </div>
+        </div>
+
+        <div class="comp comp-local comp-sm">
+          <div class="comp-icon">📍</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-local">PlacesService</div>
+            <div class="comp-desc">mock_places.json · places_service.py</div>
+            <span class="comp-tag tag-local">JSON</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="14" viewBox="0 0 2 14">
+          <line x1="1" y1="0" x2="1" y2="14" stroke="#3b82f6" stroke-width="1.5"/>
+        </svg>
+        <span class="arrow-label arrow-label-local">persist + recall</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#3b82f6"/>
+        </svg>
+      </div>
+
+      <!-- Memory + DB -->
+      <div class="branch branch-2" style="max-width:400px;width:100%;">
+        <div class="comp comp-local comp-sm">
+          <div class="comp-icon">🧠</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-local">MemoryService</div>
+            <div class="comp-desc">memory_service.py · stores user prefs &amp; history</div>
+            <span class="comp-tag tag-local">Service</span>
+          </div>
+        </div>
+        <div class="comp comp-local comp-sm">
+          <div class="comp-icon">🗄️</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-local">SQLite DB</div>
+            <div class="comp-desc">db/chilife.db · local file on disk</div>
+            <span class="comp-tag tag-green">Persistent</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow to LLM -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="14" viewBox="0 0 2 14">
+          <line x1="1" y1="0" x2="1" y2="14" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,2"/>
+        </svg>
+        <span class="arrow-label arrow-label-local">optional · OPENAI_API_KEY</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#3b82f6"/>
+        </svg>
+      </div>
+
+      <!-- LLM + Fallback -->
+      <div class="branch branch-2" style="max-width:400px;width:100%;">
+        <div class="comp comp-local comp-sm">
+          <div class="comp-icon">✨</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-local">OpenAI API</div>
+            <div class="comp-desc">GPT-4o · external HTTPS · optional</div>
+            <span class="comp-tag tag-gold">Optional</span>
+          </div>
+        </div>
+        <div class="fallback-box" style="padding:10px 12px;">
+          <div class="fb-title">⚙️ Rule-Based Engine</div>
+          <div class="fb-desc">Keyword matching · No API key needed · Always available</div>
+          <span class="comp-tag tag-purple" style="font-size:0.65rem;margin-top:6px;">Fallback</span>
+        </div>
+      </div>
+
+      <div class="spacer-md"></div>
+
+    </div><!-- /flow-col -->
+  </div><!-- /left -->
+
+  <!-- ─── DIVIDER ─── -->
+  <div class="divider">
+    <div class="divider-line">
+      <div class="divider-label">vs</div>
+    </div>
+  </div>
+
+  <!-- ─── RIGHT: AZURE ─── -->
+  <div>
+    <div class="col-header col-header-azure">
+      <h2>☁️ Azure Cloud</h2>
+      <p>Azure Container Apps · eastus · scale 0–1 · ~$8/month</p>
+    </div>
+
+    <div class="flow-col">
+
+      <!-- Internet -->
+      <div class="comp comp-neutral">
+        <div class="comp-icon">🌍</div>
+        <div class="comp-text">
+          <div class="comp-name comp-name-neutral">Internet / End User</div>
+          <div class="comp-desc">Public HTTPS traffic · browser clients worldwide</div>
+          <span class="comp-tag tag-azure">HTTPS</span>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="18" viewBox="0 0 2 18">
+          <line x1="1" y1="0" x2="1" y2="18" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4,2"/>
+        </svg>
+        <span class="arrow-label arrow-label-azure">HTTPS (future CDN)</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#06b6d4"/>
+        </svg>
+      </div>
+
+      <!-- Front Door -->
+      <div class="comp comp-azure">
+        <div class="comp-icon">🚪</div>
+        <div class="comp-text">
+          <div class="comp-name comp-name-azure">Azure Front Door</div>
+          <div class="comp-desc">Global CDN + WAF + TLS termination · custom domain routing</div>
+          <span class="comp-tag tag-gold">Future</span>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="18" viewBox="0 0 2 18">
+          <line x1="1" y1="0" x2="1" y2="18" stroke="#06b6d4" stroke-width="1.5"/>
+        </svg>
+        <span class="arrow-label arrow-label-azure">proxied request</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#06b6d4"/>
+        </svg>
+      </div>
+
+      <!-- Container Apps — MAIN -->
+      <div class="comp comp-azure" style="border-color:#0891b2;background:#0c3040;">
+        <div class="comp-icon">📦</div>
+        <div class="comp-text">
+          <div class="comp-name comp-name-azure">Azure Container Apps</div>
+          <div class="comp-desc"><strong style="color:#67e8f9;">chilife-app</strong> · eastus · scale 0–1 replica · 0.5 vCPU / 1 GiB · runs Streamlit + agent stack</div>
+          <span class="comp-tag tag-azure">Core Runtime</span>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="14" viewBox="0 0 2 14">
+          <line x1="1" y1="0" x2="1" y2="14" stroke="#06b6d4" stroke-width="1.5"/>
+        </svg>
+        <span class="arrow-label arrow-label-azure">pulls image</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#06b6d4"/>
+        </svg>
+      </div>
+
+      <!-- 2-col: ACR + Files -->
+      <div class="branch branch-2" style="max-width:400px;width:100%;">
+        <div class="comp comp-azure comp-sm">
+          <div class="comp-icon">🐳</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-azure">Container Registry</div>
+            <div class="comp-desc">chilifechrgdvmu.azurecr.io · Docker image store</div>
+            <span class="comp-tag tag-azure">ACR Basic</span>
+          </div>
+        </div>
+        <div class="comp comp-azure comp-sm">
+          <div class="comp-icon">💾</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-azure">Azure Files</div>
+            <div class="comp-desc">SQLite volume · /data mount · persistent across restarts</div>
+            <span class="comp-tag tag-green">Persistent</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="14" viewBox="0 0 2 14">
+          <line x1="1" y1="0" x2="1" y2="14" stroke="#06b6d4" stroke-width="1.5"/>
+        </svg>
+        <span class="arrow-label arrow-label-azure">secrets + AI calls</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#06b6d4"/>
+        </svg>
+      </div>
+
+      <!-- 2-col: Key Vault + OpenAI -->
+      <div class="branch branch-2" style="max-width:400px;width:100%;">
+        <div class="comp comp-azure comp-sm">
+          <div class="comp-icon">🔐</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-azure">Azure Key Vault</div>
+            <div class="comp-desc">Secrets: OPENAI_API_KEY · managed identity access</div>
+            <span class="comp-tag tag-azure">Secrets</span>
+          </div>
+        </div>
+        <div class="comp comp-azure comp-sm">
+          <div class="comp-icon">✨</div>
+          <div class="comp-text">
+            <div class="comp-name comp-name-azure">Azure OpenAI / OpenAI</div>
+            <div class="comp-desc">GPT-4o inference · HTTPS outbound from Container Apps</div>
+            <span class="comp-tag tag-gold">LLM</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div class="arrow-wrap">
+        <svg class="arrow-svg" width="2" height="14" viewBox="0 0 2 14">
+          <line x1="1" y1="0" x2="1" y2="14" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4,2"/>
+        </svg>
+        <span class="arrow-label arrow-label-azure">telemetry</span>
+        <svg class="arrow-svg" width="10" height="8" viewBox="0 0 10 8">
+          <polygon points="0,0 10,0 5,8" fill="#06b6d4"/>
+        </svg>
+      </div>
+
+      <!-- App Insights -->
+      <div class="comp comp-azure">
+        <div class="comp-icon">📊</div>
+        <div class="comp-text">
+          <div class="comp-name comp-name-azure">Application Insights</div>
+          <div class="comp-desc">Logs, traces, metrics, live diagnostics · Log Analytics workspace backend</div>
+          <span class="comp-tag tag-azure">Monitoring</span>
+        </div>
+      </div>
+
+      <div class="spacer-md"></div>
+      <div class="section-label">CI/CD Pipeline</div>
+
+      <!-- CI/CD Strip -->
+      <div class="cicd-strip" style="max-width:400px;width:100%;">
+        <div class="cicd-icon">⚙️</div>
+        <div class="cicd-text">
+          <div class="cicd-name">GitHub Actions</div>
+          <div class="cicd-desc">.github/workflows/deploy.yml · on push to main</div>
+        </div>
+        <div class="cicd-arrow">
+          <span>→ ACR</span>
+          <span>→ Container Apps</span>
+        </div>
+      </div>
+
+      <div class="spacer-md"></div>
+
+    </div><!-- /flow-col -->
+  </div><!-- /right -->
+
+</div><!-- /diagram-wrapper -->
+
+<!-- ══════════════════════════════════════════════
+     COST SUMMARY
+══════════════════════════════════════════════ -->
+<div style="padding: 0 28px; max-width:1400px; margin: 0 auto 32px;">
+  <h3 style="font-size:1rem;font-weight:700;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+    💰 Azure Cost Summary &mdash; Estimated Monthly (pay-as-you-go, low usage)
+  </h3>
+  <div class="cost-grid">
+    <div class="cost-card">
+      <div class="cc-service">📦 Container Apps</div>
+      <div class="cc-desc">0.5 vCPU · 1 GiB RAM · scale-to-zero · eastus · ~160 active hrs/mo</div>
+      <div class="cc-price">~$2.00</div>
+    </div>
+    <div class="cost-card">
+      <div class="cc-service">🐳 Container Registry</div>
+      <div class="cc-desc">ACR Basic tier · image storage + geo-replication disabled · chilifechrgdvmu</div>
+      <div class="cc-price">~$5.00</div>
+    </div>
+    <div class="cost-card">
+      <div class="cc-service">💾 Azure Files</div>
+      <div class="cc-desc">LRS · &lt;1 GiB · SQLite persistent volume at /data · transaction cost negligible</div>
+      <div class="cc-price">~$0.01</div>
+    </div>
+    <div class="cost-card">
+      <div class="cc-service">🔐 Key Vault</div>
+      <div class="cc-desc">Standard tier · &lt;10k operations/mo · 1 secret (OPENAI_API_KEY)</div>
+      <div class="cc-price">~$0.03</div>
+    </div>
+    <div class="cost-card">
+      <div class="cc-service">📊 App Insights</div>
+      <div class="cc-desc">Log Analytics workspace · &lt;5 GB ingestion/mo · within free tier</div>
+      <div class="cc-price">~$0.00</div>
+    </div>
+    <div class="cost-card">
+      <div class="cc-service">✨ OpenAI API</div>
+      <div class="cc-desc">GPT-4o · billed per token · not included in Azure infra cost · pay-per-use</div>
+      <div class="cc-price">variable</div>
+    </div>
+  </div>
+  <div style="height:12px;"></div>
+  <div class="cost-total">
+    <div class="ct-label">Total Azure Infrastructure (excl. OpenAI tokens)</div>
+    <div class="ct-price">~$8 / month</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════════ -->
+<footer>
+  <div class="footer-main">Local MVP → Azure Cloud</div>
+  <div class="footer-meta">
+    ChiLife Agent · Python 3.9 · Streamlit · Azure Container Apps · SQLite · OpenAI GPT-4o
+    &nbsp;·&nbsp; Generated 2026-05-21
+  </div>
+</footer>
+
+</body>
+</html>

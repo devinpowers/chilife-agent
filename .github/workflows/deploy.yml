@@ -1,0 +1,142 @@
+# ChiLife Agent — CI/CD Pipeline
+#
+# Triggers:
+#   - Push to main → deploy to production
+#   - Push to staging/* → deploy to staging slot
+#   - Pull request → build + test only (no deploy)
+#
+# Required GitHub Secrets (Settings → Secrets → Actions):
+#   AZURE_CLIENT_ID         - Service principal app ID (use OIDC, not password)
+#   AZURE_TENANT_ID         - Azure AD tenant ID
+#   AZURE_SUBSCRIPTION_ID   - Azure subscription ID
+#   ACR_LOGIN_SERVER        - e.g. chilife.azurecr.io
+#   CONTAINER_APP_NAME      - e.g. chilife-agent
+#   CONTAINER_APP_RG        - Resource group name
+#   CONTAINER_APP_ENV       - Container Apps environment name
+
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main, "staging/*"]
+  pull_request:
+    branches: [main]
+
+env:
+  IMAGE_NAME: chilife-agent
+
+jobs:
+  # ── Job 1: Test ─────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run smoke test
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.')
+          from db.database import init_db
+          from src.agents.lifestyle_agent import LifestyleAgent
+          from src.models.schemas import UserRequest
+          init_db()
+          agent = LifestyleAgent()
+          ps = agent.generate_plans(UserRequest(
+              neighborhood='Logan Square', date_context='friday',
+              vibe='chill', budget=60, group_context='date', user_id='ci'
+          ))
+          assert len(ps.plans) == 3, 'Expected 3 plans'
+          print('Smoke test passed:', [p.title for p in ps.plans])
+          "
+
+  # ── Job 2: Build & Push image ────────────────────────────────────────────────
+  build:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    needs: test
+    # Only build on push (not PRs)
+    if: github.event_name == 'push'
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      short_sha: ${{ steps.sha.outputs.short }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # OIDC login — no long-lived credentials stored as secrets
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        run: az acr login --name ${{ secrets.ACR_LOGIN_SERVER }}
+
+      - name: Build and push Docker image
+        id: meta
+        run: |
+          TAG="${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ steps.sha.outputs.short }}"
+          LATEST="${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest"
+          docker build -t "$TAG" -t "$LATEST" .
+          docker push "$TAG"
+          docker push "$LATEST"
+          echo "tags=$TAG" >> $GITHUB_OUTPUT
+
+  # ── Job 3: Deploy ────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+      url: ${{ steps.deploy.outputs.app_url }}
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Container Apps
+        id: deploy
+        run: |
+          az containerapp update \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.CONTAINER_APP_RG }} \
+            --image ${{ needs.build.outputs.image_tag }}
+
+          URL=$(az containerapp show \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.CONTAINER_APP_RG }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "app_url=https://$URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: https://$URL"
+
+      - name: Health check
+        run: |
+          sleep 15
+          URL="${{ steps.deploy.outputs.app_url }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/_stcore/health")
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed with status $STATUS"
+            exit 1
+          fi
+          echo "Health check passed ($STATUS)"
