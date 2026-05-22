@@ -16,6 +16,7 @@ from db.database import init_db
 from src.agents.lifestyle_agent import LifestyleAgent
 from src.models.schemas import Feedback, UserRequest
 from src.services.data_pipeline import run_in_background
+from src.services.weather_service import get_forecast, get_weather
 
 
 @st.cache_resource(show_spinner=False)
@@ -133,8 +134,68 @@ st.markdown("""
     padding: 1rem 1.2rem;
     height: 100%;
   }
+
+  /* Weather widget */
+  .wx-card {
+    background: linear-gradient(135deg, #e8f4fd 0%, #dbeeff 100%);
+    border: 1px solid #b8d9f7;
+    border-radius: 12px;
+    padding: 12px 14px 10px;
+    margin-bottom: 0.8rem;
+  }
+  .wx-card.wx-rainy  { background: linear-gradient(135deg, #e8edf5 0%, #dce4f0 100%); border-color: #aabcd6; }
+  .wx-card.wx-cold   { background: linear-gradient(135deg, #e8f0f8 0%, #d6e6f5 100%); border-color: #a0c0e0; }
+  .wx-card.wx-stormy { background: linear-gradient(135deg, #e8e8f0 0%, #d8d8e8 100%); border-color: #9898b8; }
+  .wx-card.wx-warm   { background: linear-gradient(135deg, #fff4e0 0%, #fdebd0 100%); border-color: #f0c070; }
+  .wx-card.wx-snowy  { background: linear-gradient(135deg, #eef4ff 0%, #e4f0ff 100%); border-color: #b0ccee; }
+
+  .wx-temp { font-size: 1.6rem; font-weight: 800; color: #1a3a5c; line-height: 1; }
+  .wx-feels { font-size: 0.72rem; color: #557; margin-top: 2px; }
+  .wx-emoji { font-size: 2.4rem; line-height: 1; }
+  .wx-condition { font-size: 0.78rem; font-weight: 600; color: #3a5a7c; margin-top: 5px; text-transform: capitalize; }
+  .wx-rec { font-size: 0.72rem; color: #556; margin-top: 3px; font-style: italic; line-height: 1.35; }
+
+  .wx-forecast {
+    display: flex;
+    gap: 6px;
+    margin: 0.5rem 0 1rem;
+  }
+  .wx-day {
+    flex: 1;
+    background: #f7fbff;
+    border: 1px solid #d0e8f8;
+    border-radius: 8px;
+    padding: 6px 4px;
+    text-align: center;
+  }
+  .wx-day-name  { font-size: 0.65rem; font-weight: 700; color: #667; text-transform: uppercase; letter-spacing: 0.04em; }
+  .wx-day-emoji { font-size: 1.1rem; margin: 2px 0; }
+  .wx-day-temp  { font-size: 0.78rem; font-weight: 700; color: #2a4a6c; }
 </style>
 """, unsafe_allow_html=True)
+
+# ── Weather helpers ─────────────────────────────────────────────────────────────
+_WX_EMOJI = {
+    "clear": "☀️", "sunny": "☀️", "warm": "🌤️", "cloudy": "⛅",
+    "rainy": "🌧️", "stormy": "⛈️", "snowy": "🌨️",
+    "foggy": "🌫️", "windy": "💨", "cold": "🥶",
+}
+_WX_CSS_CLASS = {
+    "rainy": "wx-rainy", "stormy": "wx-stormy", "cold": "wx-cold",
+    "snowy": "wx-snowy", "warm": "wx-warm",
+}
+
+
+def _wx_emoji(condition: str) -> str:
+    return _WX_EMOJI.get(condition.lower(), "🌡️")
+
+
+def _day_abbr(date_str: str) -> str:
+    try:
+        from datetime import datetime
+        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%a")
+    except Exception:
+        return "—"
 
 # ── Init ───────────────────────────────────────────────────────────────────────
 init_db()
@@ -185,9 +246,43 @@ def _confidence_html(score: float) -> str:
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
+_current_wx = get_weather()
+_forecast    = get_forecast()
+
 with st.sidebar:
     st.markdown("## 🏙️ ChiLife Agent")
     st.caption("Personal AI lifestyle concierge for Chicago")
+    st.divider()
+
+    # ── Live weather card ───────────────────────────────────────────────────
+    wx_cond  = _current_wx.condition
+    wx_class = _WX_CSS_CLASS.get(wx_cond, "")
+    st.markdown(f"""
+    <div class="wx-card {wx_class}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="wx-temp">{int(_current_wx.temp_f)}°F</div>
+          <div class="wx-feels">Feels like {int(_current_wx.feels_like_f)}°F</div>
+        </div>
+        <div class="wx-emoji">{_wx_emoji(wx_cond)}</div>
+      </div>
+      <div class="wx-condition">Chicago · {_current_wx.condition}</div>
+      <div class="wx-rec">{_current_wx.recommendation}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── 5-day forecast strip ────────────────────────────────────────────────
+    if _forecast:
+        days_html = ""
+        for day in _forecast[:5]:
+            days_html += f"""
+            <div class="wx-day">
+              <div class="wx-day-name">{_day_abbr(day.get('forecast_for',''))}</div>
+              <div class="wx-day-emoji">{_wx_emoji(day.get('condition',''))}</div>
+              <div class="wx-day-temp">{int(day.get('temp_f', 0))}°</div>
+            </div>"""
+        st.markdown(f'<div class="wx-forecast">{days_html}</div>', unsafe_allow_html=True)
+
     st.divider()
 
     neighborhood = st.selectbox("Neighborhood", NEIGHBORHOODS)
@@ -221,7 +316,10 @@ with st.sidebar:
 header_col, badge_col = st.columns([5, 1])
 with header_col:
     st.markdown("# Find Your Chicago Night")
-    st.caption("3 personalized plans based on your vibe, budget, and the city's best spots.")
+    st.caption(
+        f"{_wx_emoji(_current_wx.condition)} {int(_current_wx.temp_f)}°F in Chicago right now · "
+        "3 personalized plans based on your vibe, budget, and the city's best spots."
+    )
 with badge_col:
     if st.session_state.plan_set:
         mode = "AI" if st.session_state.plan_set.llm_used else "Rule-Based"
