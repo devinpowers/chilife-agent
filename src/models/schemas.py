@@ -55,13 +55,14 @@ class EventResult(BaseModel):
     group_friendly: bool
     date_friendly: bool
     indoor: bool
+    url: str = ""
 
 
 class PlaceResult(BaseModel):
     id: str
     name: str
     category: str
-    subcategory: str
+    subcategory: str = ""
     neighborhood: str
     address: str
     price_range: str
@@ -69,7 +70,7 @@ class PlaceResult(BaseModel):
     vibe: List[str]
     tags: List[str]
     description: str
-    hours: dict
+    hours: dict = Field(default_factory=dict)
     solo_friendly: bool
     date_friendly: bool
     group_friendly: bool

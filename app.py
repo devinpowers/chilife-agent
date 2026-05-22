@@ -15,6 +15,17 @@ load_dotenv()
 from db.database import init_db
 from src.agents.lifestyle_agent import LifestyleAgent
 from src.models.schemas import Feedback, UserRequest
+from src.services.data_pipeline import run_in_background
+
+
+@st.cache_resource(show_spinner=False)
+def _start_pipeline():
+    """Run once per server process — seeds places and refreshes live data."""
+    run_in_background()
+    return True
+
+
+_start_pipeline()
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
